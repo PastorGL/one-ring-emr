@@ -163,8 +163,9 @@ SetConfigProps $livyIni "livy-conf"
 
 $uniq = ReadProperty 'unique.id' -Prompt "Enter an unique id for this deployment" -Optional
 if ($null -eq $uniq) {
-    $uniq = [DateTimeOffset]::Now.ToUnixTimeSeconds()
+    $uniq = [DateTimeOffset]::Now.ToUnixTimeSeconds() + "." + [Random]::new().Next()
 }
+"##teamcity[setParameter name='deployment.uniq' value='$uniq']"
 
 $parameters += @{ Key = "Uniq"; Value = $uniq }
 
@@ -181,8 +182,20 @@ $stackId = New-CFNStack `
     -Parameters $parameters `
     -ErrorAction Stop
 
-$tOut = [int]$bidTimeout * 60 + 1800
-Wait-CFNStack -StackName $stackId -Timeout $tOut
+$time = [DateTimeOffset]::Now.ToUnixTimeSeconds()
+$tOut = $time + [int]$bidTimeout * 60 + 1800
+$stack = $false
+while ((-not $stack) -and ($time -le $tOut)) {
+    Start-Sleep -Seconds 20
+
+    $time = [DateTimeOffset]::Now.ToUnixTimeSeconds()
+    $stack = Test-CFNStack -StackName $stackId
+}
+
+if (-not $stack) {
+    "Timed out while creating the Cluster."
+    exit 1
+}
 
 $masterAddress = 'dummy'
 $clusterId = 'dummy'
@@ -204,7 +217,6 @@ foreach ($export in $exports) {
     }
 }
 
-"##teamcity[setParameter name='deployment.uniq' value='$uniq']"
 "##teamcity[setParameter name='deployment.cluster.id' value='$clusterId']"
 "##teamcity[setParameter name='deployment.master.address' value='$masterAddress']"
 
