@@ -163,7 +163,7 @@ SetConfigProps $livyIni "livy-conf"
 
 $uniq = ReadProperty 'unique.id' -Prompt "Enter an unique id for this deployment" -Optional
 if ($null -eq $uniq) {
-    $uniq = [DateTimeOffset]::Now.ToUnixTimeSeconds() + "." + [Random]::new().Next()
+    $uniq = '{0}.{1}' -f [DateTimeOffset]::Now.ToUnixTimeSeconds(), [Random]::new().Next()
 }
 "##teamcity[setParameter name='deployment.uniq' value='$uniq']"
 
