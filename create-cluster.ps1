@@ -8,6 +8,7 @@ param(
     [string]$coreIni = './settings/core.ini',
     [string]$mapredIni = './settings/mapred.ini',
     [string]$hdfsIni = './settings/hdfs.ini',
+    [string]$emrfsIni = './settings/emrfs.ini',
     [string]$yarnIni = './settings/yarn.ini',
     [string]$oozieIni = './settings/oozie.ini',
     [string]$sparkIni = './settings/spark.ini',
@@ -155,6 +156,7 @@ function SetConfigProps([string]$ini, [string]$classification) {
 SetConfigProps $coreIni "core-site"
 SetConfigProps $mapredIni "mapred-site"
 SetConfigProps $hdfsIni "hdfs-site"
+SetConfigProps $emrfsIni "emrfs-site"
 SetConfigProps $yarnIni "yarn-site"
 SetConfigProps $oozieIni "oozie-site"
 SetConfigProps $sparkIni "spark-defaults"
