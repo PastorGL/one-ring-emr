@@ -6,6 +6,7 @@ param(
     [Parameter(Position = 3, Mandatory = $true)][ValidateNotNullOrEmpty()]
     [string]$tasksFile,
     [string]$tasksPrefix = 'spark.meta',
+    [string]$tasksPrefixes,
     [string]$paramsFile,
     [string]$params = 'YT1h', #a=a
     [switch]$autoConfirm = $false,
@@ -15,12 +16,13 @@ param(
     [string]$clusterId
 )
 
-"Running job sequence on AWS EMR Cluster"
+if ($tasksPrefixes -ne '') {
+    $tasksPrefixes = $tasksPrefixes.Split(',').Trim()
+} else {
+    $tasksPrefixes = @( $tasksPrefix )
+}
 
 . ./common/functions.ps1 $awsIni $iniFile $autoConfirm
-
-$tasks = ReadProperty 'tasks' -Prompt "Enter a comma-separated list of task names"
-$tasks = $tasks.Split(',').Trim()
 
 $clusterBucket = ReadProperty "cluster.s3.bucket" -Prompt "Enter S3 bucket name where to place cluster files"
 $bucket = Get-S3Bucket -BucketName $clusterBucket -ErrorAction SilentlyContinue
@@ -30,61 +32,69 @@ if (-not($bucket)) {
     exit 1
 }
 
-$jobs = @()
-foreach ($task in $tasks) {
-    "Defining task '$task'"
+$tasks = ReadProperty 'tasks' -Prompt "Enter a comma-separated list of job names"
+$tasks = $tasks.Split(',').Trim()
 
-    $job = @{
-        'Name' = $task
-    }
+foreach ($prefix in $tasksPrefixes) {
+    "Defining job sequence for task $prefix on AWS EMR Cluster"
 
-    $jarFile = ReadProperty "$task.artifact" -Prompt "Enter .jar artifact name for task, or path to .jar"
-    if (-not(Test-Path $jarFile)) {
-        "Inexistent artifact '$jarFile'. Exiting"
+    $jobs = @()
+    foreach ($task in $tasks) {
+        "Defining job '$prefix :: $task'"
 
-        exit 1
-    }
-    $job['Artifact'] = $jarFile
-
-    $className = ReadProperty "$task.class.name" -Prompt "Enter main class name for .jar artifact"
-    if ($className -eq '') {
-        "Jobs with .jar artifact require main class name. Exiting"
-
-        exit 1
-    }
-    $job['ClassName'] = $className
-
-    $libs = ReadProperty "$task.libs" -Prompt "Enter path to additional libraries" -Optional
-    if ($null -ne $libs) {
-        $libs = $libs.Split(',').Trim()
-
-        $libJars = @()
-        foreach ($libJar in $libs) {
-            if (-not(Test-Path $libJar)) {
-                "Inexistent library '$libJar'. Exiting"
-
-                exit 1
-            }
-
-            $libJars += $libJar
+        $job = @{
+            'Name' = "$prefix :: $task"
         }
 
-        $job['Libs'] = $libJars
+        $jarFile = ReadProperty "$task.artifact" -Prompt "Enter .jar artifact name for task, or path to .jar"
+        if (-not(Test-Path $jarFile)) {
+            "Inexistent artifact '$jarFile'. Exiting"
+
+            exit 1
+        }
+        $job['Artifact'] = $jarFile
+
+        $className = ReadProperty "$task.class.name" -Prompt "Enter main class name for .jar artifact"
+        if ($className -eq '') {
+            "Jobs with .jar artifact require main class name. Exiting"
+
+            exit 1
+        }
+        $job['ClassName'] = $className
+
+        $libs = ReadProperty "$task.libs" -Prompt "Enter path to additional libraries" -Optional
+        if ($null -ne $libs) {
+            $libs = $libs.Split(',').Trim()
+
+            $libJars = @()
+            foreach ($libJar in $libs) {
+                if (-not(Test-Path $libJar)) {
+                    "Inexistent library '$libJar'. Exiting"
+
+                    exit 1
+                }
+
+                $libJars += $libJar
+            }
+
+            $job['Libs'] = $libJars
+        }
+
+        $arguments = ReadProperty "$task.arguments" -Prompt "Enter task command line arguments, as a comma-separated list" -Optional
+        if ($null -ne $arguments) {
+            $arguments = $arguments.Split(',').Trim()
+
+            $job['Arguments'] = $arguments
+        }
+        else {
+            $job['Arguments'] = @()
+        }
+
+        $job['WrapperStore'] = "s3://$Script:clusterBucket/artifacts/$Script:clusterId/$prefix"
+        $job['Prefix'] = $prefix
+
+        $jobs += $job
     }
-
-    $arguments = ReadProperty "$task.arguments" -Prompt "Enter task command line arguments, as a comma-separated list" -Optional
-    if ($null -ne $arguments) {
-        $arguments = $arguments.Split(',').Trim()
-
-        $job['Arguments'] = $arguments
-    }
-    else {
-        $job['Arguments'] = @()
-    }
-
-    $job['WrapperStore'] = "s3://$Script:clusterBucket/artifacts/$Script:clusterId"
-
-    $jobs += $job
 }
 
 function TransferFile([string]$localFile) {
@@ -133,7 +143,7 @@ foreach ($job in $jobs) {
     if ($null -ne $job['Arguments']) {
         $splatConfig['Arguments'] = $job['Arguments']. `
             Replace('%tasksFile%', $tasksFile). `
-            Replace('%prefix%', $tasksPrefix). `
+            Replace('%prefix%', $job['Prefix']). `
             Replace('%wrapperStore%', $job['WrapperStore'])
         if ($null -ne $params) {
             $splatConfig['Arguments'] = $splatConfig['Arguments']. `
