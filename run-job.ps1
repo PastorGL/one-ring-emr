@@ -35,10 +35,11 @@ if (-not($bucket)) {
 $tasks = ReadProperty 'tasks' -Prompt "Enter a comma-separated list of job names"
 $tasks = $tasks.Split(',').Trim()
 
+$jobs = @()
+
 foreach ($prefix in $prefixes) {
     "Defining job sequence for task $prefix on AWS EMR Cluster"
 
-    $jobs = @()
     foreach ($task in $tasks) {
         "Defining job '$prefix :: $task'"
 
