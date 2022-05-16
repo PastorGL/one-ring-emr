@@ -17,9 +17,9 @@ param(
 )
 
 if ($tasksPrefixes -ne '') {
-    $tasksPrefixes = $tasksPrefixes.Split(',').Trim()
+    $prefixes = $tasksPrefixes.Split(',').Trim()
 } else {
-    $tasksPrefixes = @( $tasksPrefix )
+    $prefixes = @( $tasksPrefix )
 }
 
 . ./common/functions.ps1 $awsIni $iniFile $autoConfirm
@@ -35,7 +35,7 @@ if (-not($bucket)) {
 $tasks = ReadProperty 'tasks' -Prompt "Enter a comma-separated list of job names"
 $tasks = $tasks.Split(',').Trim()
 
-foreach ($prefix in $tasksPrefixes) {
+foreach ($prefix in $prefixes) {
     "Defining job sequence for task $prefix on AWS EMR Cluster"
 
     $jobs = @()
